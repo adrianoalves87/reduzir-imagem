@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Converter Imagens BMP para PDF</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f8f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    input, button {
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 16px;
+      width: 100%;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Converter +100 Imagens para PDF</h1>
+    <input type="file" id="upload" multiple accept="image/*" />
+    <button id="convertBtn">Gerar PDF</button>
+    <p id="status"></p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const { jsPDF } = window.jspdf;
+    const upload = document.getElementById('upload');
+    const convertBtn = document.getElementById('convertBtn');
+    const status = document.getElementById('status');
+
+    function resizeImage(img, maxSize = 1000) {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxSize) {
+          height = height * (maxSize / width);
+          width = maxSize;
+        }
+      } else {
+        if (height > maxSize) {
+          width = width * (maxSize / height);
+          height = maxSize;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      return canvas.toDataURL('image/jpeg', 0.6); // 60% quality
+    }
+
+    convertBtn.addEventListener('click', async () => {
+      const files = upload.files;
+      if (!files.length) {
+        alert('Selecione imagens primeiro!');
+        return;
+      }
+
+      status.textContent = "Carregando imagens e criando PDF...";
+
+      const pdf = new jsPDF();
+      let firstPage = true;
+
+      for (let i = 0; i < files.length; i++) {
+        status.textContent = `Processando imagem ${i + 1} de ${files.length}...`;
+
+        const file = files[i];
+
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(file);
+        });
+
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const resized = resizeImage(img, 1000); // Reduz para máx. 1000px
+
+            const pdfImage = new Image();
+            pdfImage.onload = () => {
+              const pdfWidth = pdf.internal.pageSize.getWidth();
+              const pdfHeight = pdf.internal.pageSize.getHeight();
+
+              const ratio = Math.min(pdfWidth / pdfImage.width, pdfHeight / pdfImage.height);
+              const imgWidth = pdfImage.width * ratio;
+              const imgHeight = pdfImage.height * ratio;
+
+              const x = (pdfWidth - imgWidth) / 2;
+              const y = (pdfHeight - imgHeight) / 2;
+
+              if (!firstPage) pdf.addPage();
+              firstPage = false;
+
+              pdf.addImage(pdfImage, 'JPEG', x, y, imgWidth, imgHeight);
+              resolve();
+            };
+            pdfImage.src = resized;
+          };
+          img.src = dataUrl;
+        });
+      }
+
+      pdf.save("imagens.pdf");
+      status.textContent = "PDF gerado com sucesso!";
+    });
+  </script>
+</body>
+</html>
